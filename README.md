@@ -65,6 +65,9 @@ Required secrets:
 - `LAMBDA_FUNCTION_NAME`
 - `LAMBDA_EXECUTION_ROLE_ARN`
 
+The workflow uses GitHub OIDC for authentication.
+To set up the OIDC role and permissions, you may refer to [here](https://github.com/aws-actions/aws-lambda-deploy?tab=readme-ov-file#openid-connect-oidc).
+
 `cmd/lambda` uses `aws-lambda-go/lambdaurl`, so Function URL must use `InvokeMode: RESPONSE_STREAM`.
 
 The recommended GitHub environment name is `production`.

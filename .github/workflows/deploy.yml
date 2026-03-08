@@ -11,9 +11,9 @@ permissions:
     contents: read
 
 env:
-    AWS_REGION: ${{ vars.AWS_REGION }}
-    LAMBDA_FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME }}
-    LAMBDA_EXECUTION_ROLE_ARN: ${{ vars.LAMBDA_EXECUTION_ROLE_ARN }}
+    AWS_REGION: ${{ secrets.AWS_REGION }}
+    LAMBDA_FUNCTION_NAME: ${{ secrets.LAMBDA_FUNCTION_NAME }}
+    LAMBDA_EXECUTION_ROLE_ARN: ${{ secrets.LAMBDA_EXECUTION_ROLE_ARN }}
     LAMBDA_USER_AGENT: tiny-serp/0.1 (+https://github.com/okayama-daiki/tiny-serp)
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
               uses: aws-actions/configure-aws-credentials@v6.0.0
               with:
                   aws-region: ${{ env.AWS_REGION }}
-                  role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+                  role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
                   role-session-name: ${{ github.run_id }}
 
             - name: Deploy Lambda function
