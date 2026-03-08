@@ -64,6 +64,6 @@ func statusForError(err error) int {
 	case errors.Is(err, tinyserp.ErrUpstreamBlocked), errors.Is(err, tinyserp.ErrUpstreamStatus):
 		return http.StatusBadGateway
 	default:
-		return http.StatusBadGateway
+		return http.StatusInternalServerError
 	}
 }

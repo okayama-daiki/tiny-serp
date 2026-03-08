@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -122,6 +123,43 @@ func TestHandlerMapsBlockedUpstreamToBadGateway(t *testing.T) {
 
 	if recorder.Code != http.StatusBadGateway {
 		t.Fatalf("unexpected status code: %d", recorder.Code)
+	}
+}
+
+func TestStatusForError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{
+			name: "validation errors are bad request",
+			err:  tinyserp.ErrUnsupportedEngine,
+			want: http.StatusBadRequest,
+		},
+		{
+			name: "blocked upstream is bad gateway",
+			err:  tinyserp.ErrUpstreamBlocked,
+			want: http.StatusBadGateway,
+		},
+		{
+			name: "unexpected upstream status is bad gateway",
+			err:  tinyserp.ErrUpstreamStatus,
+			want: http.StatusBadGateway,
+		},
+		{
+			name: "unknown internal errors are internal server error",
+			err:  errors.New("boom"),
+			want: http.StatusInternalServerError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := statusForError(test.err); got != test.want {
+				t.Fatalf("unexpected status code: got %d want %d", got, test.want)
+			}
+		})
 	}
 }
 
