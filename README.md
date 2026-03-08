@@ -60,20 +60,26 @@ Example response:
 
 ```json
 {
-    "searchInformation": {
-        "query": "aws lambda",
-        "engine": "bing",
-        "resultsReturned": 2
+  "searchInformation": {
+    "query": "aws lambda",
+    "engine": "duckduckgo",
+    "resultsReturned": 11
+  },
+  "items": [
+    {
+      "rank": 1,
+      "title": "Official site",
+      "link": "https://aws.amazon.com/lambda",
+      "snippet": "AWS Lambda"
     },
-    "items": [
-        {
-            "rank": 1,
-            "title": "AWS Lambda - Amazon Web Services",
-            "link": "https://aws.amazon.com/lambda/",
-            "snippet": "Run code without provisioning or managing servers."
-        }
-        ...
-    ]
+    {
+      "rank": 2,
+      "title": "Serverless Computing - AWS Lambda - Amazon Web Services",
+      "link": "https://aws.amazon.com/lambda/",
+      "snippet": "AWS Lambda is a serverless compute service for running code without having to provision or manage servers. You pay only for the compute time you consume."
+    },
+    ...
+  ]
 }
 ```
 
