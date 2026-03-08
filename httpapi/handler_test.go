@@ -150,6 +150,39 @@ func TestHandlerNormalizesEngineMapKeys(t *testing.T) {
 	}
 }
 
+func TestEngineRegistryResolve(t *testing.T) {
+	registry := tinyserp.NewEngineRegistry(map[string]tinyserp.Engine{
+		"  BING  ": tinyserp.BingEngine{},
+		"empty":    nil,
+	})
+
+	engine, ok := registry.Resolve(" bing ")
+	if !ok {
+		t.Fatal("expected engine to resolve")
+	}
+	if engine.Name() != "bing" {
+		t.Fatalf("unexpected engine name: %s", engine.Name())
+	}
+
+	if _, ok := registry.Resolve("empty"); ok {
+		t.Fatal("expected nil engine registration to be ignored")
+	}
+	if _, ok := registry.Resolve("duckduckgo"); ok {
+		t.Fatal("expected missing engine to fail resolution")
+	}
+}
+
+func TestNewEngineRegistryUsesDefaults(t *testing.T) {
+	registry := tinyserp.NewEngineRegistry(nil)
+	engine, ok := registry.Resolve("bing")
+	if !ok {
+		t.Fatal("expected default bing engine to resolve")
+	}
+	if engine.Name() != "bing" {
+		t.Fatalf("unexpected engine name: %s", engine.Name())
+	}
+}
+
 func TestHandlerReturnsGenericMessageForInternalErrors(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/search?engine=broken&q=aws+lambda", nil)

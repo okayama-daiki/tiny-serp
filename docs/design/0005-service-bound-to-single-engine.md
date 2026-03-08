@@ -33,25 +33,26 @@ to add custom engines.
 
 3. Keep string-based engine resolution at the HTTP boundary.
     - The `/search?engine=...` endpoint still accepts engine names as strings.
-    - The HTTP layer resolves those names through a plain `map[string]Engine`.
+    - The HTTP layer resolves those names through `EngineRegistry`.
+    - `NewEngineRegistry` normalizes names once and provides `Resolve(...)`.
     - This keeps transport concerns out of `Service` while preserving the
       existing HTTP API shape.
 
 4. Keep engine registration simple.
     - Built-in engines can be instantiated directly as `DuckDuckGoEngine{}` and
       `BingEngine{}` for library use.
-    - `DefaultEngines()` is a convenience for HTTP-layer string lookup.
-    - External users can extend the registry by populating their own
-      `map[string]Engine`.
-    - This keeps the public API obvious and avoids over-designing a registry
-      type for a very small engine set.
+    - `DefaultEngines()` is a convenience for HTTP-layer defaults.
+    - External users can extend the registry by supplying their own
+      `map[string]Engine` input to `NewEngineRegistry`.
+    - This keeps the public API obvious while avoiding request-path
+      normalization logic inside handlers.
 
 ## Consequences
 
 - Library callers now work with `Engine` values instead of raw engine name
   strings.
-- The HTTP handler remains extensible by swapping in a custom
-  `map[string]Engine`.
+- The HTTP handler remains extensible by building `EngineRegistry` from a
+  custom `map[string]Engine`.
 - Built-in engines stay simple and dependency-minimal.
 - Future engine-specific request behavior can be added inside individual engine
   implementations without changing `Service.Search`.

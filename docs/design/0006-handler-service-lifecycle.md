@@ -23,7 +23,7 @@ handler is created and reuse those instances across requests.
 
 2. Reuse only the long-lived inputs.
     - The handler already reuses the caller-provided `*http.Client`.
-    - The handler also reuses the normalized `map[string]Engine`.
+    - The handler also reuses `EngineRegistry` created during handler setup.
     - `Service` stays an ephemeral execution wrapper around one engine plus
       shared configuration defaults.
 

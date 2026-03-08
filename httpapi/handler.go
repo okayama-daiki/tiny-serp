@@ -12,10 +12,7 @@ import (
 
 // NewHandler builds the HTTP API for tiny-serp.
 func NewHandler(client *http.Client, engines map[string]tinyserp.Engine) http.Handler {
-	if engines == nil {
-		engines = tinyserp.DefaultEngines()
-	}
-	engines = normalizeEngines(engines)
+	registry := tinyserp.NewEngineRegistry(engines)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/search", func(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +32,7 @@ func NewHandler(client *http.Client, engines map[string]tinyserp.Engine) http.Ha
 			return
 		}
 
-		engine, ok := engines[normalizeEngineName(engineName)]
+		engine, ok := registry.Resolve(engineName)
 		if !ok {
 			err := fmt.Errorf("%w: %s", tinyserp.ErrUnsupportedEngine, engineName)
 			status := statusForError(err)
@@ -54,28 +51,6 @@ func NewHandler(client *http.Client, engines map[string]tinyserp.Engine) http.Ha
 	})
 
 	return mux
-}
-
-func normalizeEngines(engines map[string]tinyserp.Engine) map[string]tinyserp.Engine {
-	normalized := make(map[string]tinyserp.Engine, len(engines))
-	for name, engine := range engines {
-		if engine == nil {
-			continue
-		}
-
-		key := normalizeEngineName(name)
-		if key == "" {
-			continue
-		}
-
-		normalized[key] = engine
-	}
-
-	return normalized
-}
-
-func normalizeEngineName(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

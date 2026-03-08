@@ -4,8 +4,8 @@
 
 The project constructs and parses URIs in two places:
 
-- the Lambda Function URL adapter needs to reconstruct a request target from
-  `RawPath` and `RawQueryString`
+- the Lambda Function URL entrypoint needs HTTP request translation between
+  Lambda events and `net/http` handlers
 - the built-in search engine implementations need to parse and normalize
   outbound and extracted result URLs
 
@@ -18,9 +18,9 @@ concatenation or ad-hoc parsing.
     - `net/url` is the official URI parsing and formatting package in Go.
     - For the current requirements, it is sufficient and keeps dependencies low.
 
-2. Avoid manual URI assembly where `net/url` already provides a structured API.
-    - The Lambda adapter should build the request target via `url.URL` and
-      `RequestURI()`, not by concatenating path and query strings directly.
+2. Avoid manual URI assembly where maintained adapters already exist.
+    - The Lambda entrypoint uses `aws-lambda-go/lambdaurl` for request/response
+      translation instead of custom URI concatenation logic.
     - URL normalization inside the built-in engine implementations should
       continue to rely on `url.Parse` rather than hand-written parsing logic.
 
@@ -34,7 +34,9 @@ concatenation or ad-hoc parsing.
 ## Consequences
 
 - Current code stays dependency-minimal and idiomatic for Go.
-- URI logic remains centralized around standard library behavior instead of
-  custom string processing.
+- URI logic for search engines remains centralized around standard library
+  behavior instead of custom string processing.
+- URI translation for Lambda Function URL is delegated to
+  `aws-lambda-go/lambdaurl`, reducing custom transport glue code.
 - The project still leaves room to adopt a well-known external package later if
   concrete URI requirements become more complex.

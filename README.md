@@ -72,6 +72,7 @@ Example response:
             "link": "https://aws.amazon.com/lambda/",
             "snippet": "Run code without provisioning or managing servers."
         }
+        ...
     ]
 }
 ```

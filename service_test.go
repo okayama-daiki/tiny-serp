@@ -186,6 +186,23 @@ func TestServiceSearchSupportsCustomEngine(t *testing.T) {
 	}
 }
 
+func TestDefaultEnginesReturnsCopy(t *testing.T) {
+	first := DefaultEngines()
+	if _, ok := first["bing"]; !ok {
+		t.Fatal("expected bing engine to be registered")
+	}
+	if _, ok := first["duckduckgo"]; !ok {
+		t.Fatal("expected duckduckgo engine to be registered")
+	}
+
+	first["bing"] = nil
+
+	second := DefaultEngines()
+	if second["bing"] == nil {
+		t.Fatal("expected default engines to be isolated from caller mutations")
+	}
+}
+
 func TestNormalizeDuckDuckGoLinkRejectsLookalikeHost(t *testing.T) {
 	link := normalizeDuckDuckGoLink("https://notduckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Flambda%2F")
 	if link != "https://notduckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Flambda%2F" {
