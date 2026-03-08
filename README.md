@@ -4,7 +4,9 @@ A tiny SERP (Search Engine Results Page) extraction service in Go.
 
 ## What is tiny-serp?
 
-tiny-serp is a minimal SERP extraction service. It queries public search engines, retrieves the HTML result page, parses the results, and returns structured search data (title, URL, snippet). The goal is to provide a lightweight, dependency-minimal alternative to commercial search APIs.
+tiny-serp is a minimal SERP extraction service. It queries public search engines, returns structured search data (title, URL, snippet). The goal is to provide a lightweight alternative to commercial search APIs.
+
+It is designed for **private** use and **low-traffic** scenarios, allowing you to deploy your own search API without worrying about costs or maintaining heavy infrastructure.
 
 ## Quickstart (HTTP server)
 
