@@ -28,17 +28,13 @@ keeping transport-specific code out of the root package.
 ## Library usage
 
 ```go
-engines := tinyserp.DefaultEngines()
-engine := engines["bing"]
-if engine == nil {
-    // handle error
-}
-
-service := tinyserp.NewService(engine, nil)
+service := tinyserp.NewService(tinyserp.BingEngine{}, nil)
 response, err := service.Search(ctx, "aws lambda")
 ```
 
-External packages can add custom engines by populating their own `map[string]tinyserp.Engine`.
+External packages can implement `tinyserp.Engine` directly. The
+`map[string]tinyserp.Engine` registry returned by `DefaultEngines()` is mainly
+for HTTP-layer engine resolution.
 
 Non-goals for the initial version:
 

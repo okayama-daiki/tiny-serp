@@ -38,7 +38,9 @@ to add custom engines.
       existing HTTP API shape.
 
 4. Keep engine registration simple.
-    - Built-in engines are exposed through `DefaultEngines()`.
+    - Built-in engines can be instantiated directly as `DuckDuckGoEngine{}` and
+      `BingEngine{}` for library use.
+    - `DefaultEngines()` is a convenience for HTTP-layer string lookup.
     - External users can extend the registry by populating their own
       `map[string]Engine`.
     - This keeps the public API obvious and avoids over-designing a registry

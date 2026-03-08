@@ -26,6 +26,8 @@ type DuckDuckGoEngine struct{}
 type BingEngine struct{}
 
 // DefaultEngines returns the built-in engine registry keyed by engine name.
+// It is mainly intended for HTTP-layer string lookup; library callers can
+// instantiate built-in engines directly.
 func DefaultEngines() map[string]Engine {
 	return map[string]Engine{
 		"duckduckgo": DuckDuckGoEngine{},
