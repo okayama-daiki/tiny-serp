@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -149,6 +150,28 @@ func TestHandlerNormalizesEngineMapKeys(t *testing.T) {
 	}
 }
 
+func TestHandlerReturnsGenericMessageForInternalErrors(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/search?engine=broken&q=aws+lambda", nil)
+	engines := map[string]tinyserp.Engine{
+		"broken": failingEngine{},
+	}
+
+	NewHandler(nil, engines).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("unexpected status code: %d", recorder.Code)
+	}
+
+	var response map[string]string
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+	if response["error"] != "internal server error" {
+		t.Fatalf("unexpected error message: %s", response["error"])
+	}
+}
+
 func TestStatusForError(t *testing.T) {
 	tests := []struct {
 		name string
@@ -217,4 +240,18 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+type failingEngine struct{}
+
+func (failingEngine) Name() string {
+	return "broken"
+}
+
+func (failingEngine) BuildRequest(context.Context, string) (*http.Request, error) {
+	return nil, errors.New("boom")
+}
+
+func (failingEngine) Parse(io.Reader) ([]tinyserp.SearchItem, error) {
+	return nil, nil
 }

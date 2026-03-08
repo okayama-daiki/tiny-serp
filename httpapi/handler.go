@@ -38,13 +38,15 @@ func NewHandler(client *http.Client, engines map[string]tinyserp.Engine) http.Ha
 		engine, ok := engines[normalizeEngineName(engineName)]
 		if !ok {
 			err := fmt.Errorf("%w: %s", tinyserp.ErrUnsupportedEngine, engineName)
-			writeJSON(w, statusForError(err), map[string]string{"error": err.Error()})
+			status := statusForError(err)
+			writeJSON(w, status, errorPayload(status, err))
 			return
 		}
 
 		response, err := tinyserp.NewService(engine, client).Search(r.Context(), query)
 		if err != nil {
-			writeJSON(w, statusForError(err), map[string]string{"error": err.Error()})
+			status := statusForError(err)
+			writeJSON(w, status, errorPayload(status, err))
 			return
 		}
 
@@ -86,6 +88,15 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(append(body, '\n'))
+}
+
+func errorPayload(status int, err error) map[string]string {
+	message := err.Error()
+	if status == http.StatusInternalServerError {
+		message = "internal server error"
+	}
+
+	return map[string]string{"error": message}
 }
 
 func statusForError(err error) int {
