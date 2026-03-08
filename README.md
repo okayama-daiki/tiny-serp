@@ -14,6 +14,17 @@ Current scope:
 - Deployment target: AWS Lambda Function URL
 - Deployment method: GitHub Actions with `aws-actions/aws-lambda-deploy`
 
+## Package layout
+
+- module root: public library package `tinyserp`
+- `httpapi/`: `net/http` handler package
+- `lambdaadapter/`: Lambda Function URL adapter package
+- `cmd/tiny-serp`: local HTTP server entrypoint
+- `cmd/lambda`: Lambda entrypoint
+
+This keeps the reusable search logic importable from other repositories while
+keeping transport-specific code out of the root package.
+
 Non-goals for the initial version:
 
 - caching
@@ -39,19 +50,19 @@ Example response:
 
 ```json
 {
-  "searchInformation": {
-    "query": "aws lambda",
-    "engine": "bing",
-    "resultsReturned": 2
-  },
-  "items": [
-    {
-      "rank": 1,
-      "title": "AWS Lambda - Amazon Web Services",
-      "link": "https://aws.amazon.com/lambda/",
-      "snippet": "Run code without provisioning or managing servers."
-    }
-  ]
+    "searchInformation": {
+        "query": "aws lambda",
+        "engine": "bing",
+        "resultsReturned": 2
+    },
+    "items": [
+        {
+            "rank": 1,
+            "title": "AWS Lambda - Amazon Web Services",
+            "link": "https://aws.amazon.com/lambda/",
+            "snippet": "Run code without provisioning or managing servers."
+        }
+    ]
 }
 ```
 

@@ -1,17 +1,20 @@
-package tinyserp
+package httpapi
 
 import (
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	tinyserp "github.com/okayama-daiki/tiny-serp"
 )
 
 func TestHandlerSearchSuccess(t *testing.T) {
-	html := readFixture(t, "testdata/bing.html")
-	service := NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	html := readFixture(t, "../testdata/bing.html")
+	service := tinyserp.NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     make(http.Header),
@@ -31,7 +34,7 @@ func TestHandlerSearchSuccess(t *testing.T) {
 		t.Fatalf("unexpected content type: %s", contentType)
 	}
 
-	var response SearchResponse
+	var response tinyserp.SearchResponse
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -44,7 +47,7 @@ func TestHandlerSearchSuccess(t *testing.T) {
 }
 
 func TestHandlerSearchValidation(t *testing.T) {
-	service := NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	service := tinyserp.NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		t.Fatal("unexpected outbound request")
 		return nil, nil
 	})})
@@ -103,8 +106,8 @@ func TestHandlerSearchValidation(t *testing.T) {
 }
 
 func TestHandlerMapsBlockedUpstreamToBadGateway(t *testing.T) {
-	html := readFixture(t, "testdata/duckduckgo_challenge.html")
-	service := NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	html := readFixture(t, "../testdata/duckduckgo_challenge.html")
+	service := tinyserp.NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     make(http.Header),
@@ -120,4 +123,21 @@ func TestHandlerMapsBlockedUpstreamToBadGateway(t *testing.T) {
 	if recorder.Code != http.StatusBadGateway {
 		t.Fatalf("unexpected status code: %d", recorder.Code)
 	}
+}
+
+func readFixture(t *testing.T, path string) string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read fixture %s: %v", path, err)
+	}
+
+	return string(content)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tinyserp "github.com/okayama-daiki/tiny-serp"
+	"github.com/okayama-daiki/tiny-serp/httpapi"
 )
 
 func main() {
@@ -16,7 +17,7 @@ func main() {
 
 	addr := ":" + port
 	log.Printf("tiny-serp listening on %s", addr)
-	if err := http.ListenAndServe(addr, tinyserp.NewHandler(tinyserp.NewService(nil))); err != nil {
+	if err := http.ListenAndServe(addr, httpapi.NewHandler(tinyserp.NewService(nil))); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -1,4 +1,4 @@
-package tinyserp
+package lambdaadapter
 
 import (
 	"bytes"
@@ -7,20 +7,22 @@ import (
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
+	tinyserp "github.com/okayama-daiki/tiny-serp"
+	"github.com/okayama-daiki/tiny-serp/httpapi"
 )
 
-// LambdaHandler adapts the net/http handler to Lambda Function URLs.
-type LambdaHandler struct {
+// Adapter bridges Lambda Function URLs to the tiny-serp HTTP handler.
+type Adapter struct {
 	handler http.Handler
 }
 
-// NewLambdaHandler creates a Lambda adapter for the tiny-serp HTTP handler.
-func NewLambdaHandler(service *Service) *LambdaHandler {
-	return &LambdaHandler{handler: NewHandler(service)}
+// New creates a Lambda adapter backed by the shared HTTP API.
+func New(service *tinyserp.Service) *Adapter {
+	return &Adapter{handler: httpapi.NewHandler(service)}
 }
 
 // Handle processes Lambda Function URL requests.
-func (h *LambdaHandler) Handle(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
+func (a *Adapter) Handle(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	target := request.RawPath
 	if target == "" {
 		target = "/"
@@ -39,7 +41,7 @@ func (h *LambdaHandler) Handle(ctx context.Context, request events.LambdaFunctio
 	}
 
 	writer := &responseBuffer{header: make(http.Header)}
-	h.handler.ServeHTTP(writer, req)
+	a.handler.ServeHTTP(writer, req)
 
 	return events.LambdaFunctionURLResponse{
 		StatusCode:      writer.statusCodeOrOK(),

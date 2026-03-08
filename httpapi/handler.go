@@ -1,16 +1,18 @@
-package tinyserp
+package httpapi
 
 import (
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
+
+	tinyserp "github.com/okayama-daiki/tiny-serp"
 )
 
 // NewHandler builds the HTTP API for tiny-serp.
-func NewHandler(service *Service) http.Handler {
+func NewHandler(service *tinyserp.Service) http.Handler {
 	if service == nil {
-		service = NewService(nil)
+		service = tinyserp.NewService(nil)
 	}
 
 	mux := http.NewServeMux()
@@ -23,7 +25,7 @@ func NewHandler(service *Service) http.Handler {
 		engine := strings.TrimSpace(r.URL.Query().Get("engine"))
 		query := strings.TrimSpace(r.URL.Query().Get("q"))
 		if query == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrQueryRequired.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": tinyserp.ErrQueryRequired.Error()})
 			return
 		}
 		if engine == "" {
@@ -35,9 +37,9 @@ func NewHandler(service *Service) http.Handler {
 		if err != nil {
 			status := http.StatusBadGateway
 			switch {
-			case errors.Is(err, ErrQueryRequired), errors.Is(err, ErrUnsupportedEngine):
+			case errors.Is(err, tinyserp.ErrQueryRequired), errors.Is(err, tinyserp.ErrUnsupportedEngine):
 				status = http.StatusBadRequest
-			case errors.Is(err, ErrUpstreamBlocked), errors.Is(err, ErrUpstreamStatus):
+			case errors.Is(err, tinyserp.ErrUpstreamBlocked), errors.Is(err, tinyserp.ErrUpstreamStatus):
 				status = http.StatusBadGateway
 			}
 			writeJSON(w, status, map[string]string{"error": err.Error()})
