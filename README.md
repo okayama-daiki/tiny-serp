@@ -18,9 +18,8 @@ Current scope:
 
 - module root: public library package `tinyserp`
 - `httpapi/`: `net/http` handler package
-- `lambdaadapter/`: Lambda Function URL adapter package
 - `cmd/tiny-serp`: local HTTP server entrypoint
-- `cmd/lambda`: Lambda entrypoint
+- `cmd/lambda`: Lambda Function URL entrypoint (uses `aws-lambda-go/lambdaurl`)
 
 This keeps the reusable search logic importable from other repositories while
 keeping transport-specific code out of the root package.
@@ -96,6 +95,9 @@ The workflow:
 
 Function URL configuration and public access policy are managed outside this
 workflow.
+
+`cmd/lambda` uses `aws-lambda-go/lambdaurl`, so Function URL must use
+`InvokeMode: RESPONSE_STREAM`.
 
 The recommended GitHub environment name is `production`.
 

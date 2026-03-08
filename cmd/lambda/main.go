@@ -1,10 +1,13 @@
 package main
 
 import (
-	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/okayama-daiki/tiny-serp/lambdaadapter"
+	"github.com/aws/aws-lambda-go/lambdaurl"
+	"github.com/okayama-daiki/tiny-serp/httpapi"
 )
 
+var startLambdaURL = lambdaurl.Start
+var newHTTPHandler = httpapi.NewHandler
+
 func main() {
-	lambda.Start(lambdaadapter.New(nil, nil).Handle)
+	startLambdaURL(newHTTPHandler(nil, nil))
 }

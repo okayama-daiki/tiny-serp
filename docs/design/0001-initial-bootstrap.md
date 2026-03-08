@@ -29,7 +29,7 @@ The repository started effectively empty. The initial goal is a minimal HTTP API
     - The HTTP handler maps that to `502` instead of pretending there were zero results.
 
 5. Keep deployment minimal.
-    - Lambda uses a thin adapter over the same HTTP handler.
+    - Lambda entrypoint reuses the same HTTP handler.
     - No caching, auth, proxies, rate limiting, or headless browsers are introduced.
 
 ## Resulting Structure
@@ -37,7 +37,6 @@ The repository started effectively empty. The initial goal is a minimal HTTP API
 - `service.go`: outbound fetch orchestration
 - `engines.go`: built-in engines, parsers, and engine-specific URL normalization
 - `httpapi/handler.go`: `/search` HTTP API
-- `lambdaadapter/adapter.go`: Lambda Function URL adapter
 - `cmd/tiny-serp`: local HTTP server
 - `cmd/lambda`: Lambda entrypoint
 
