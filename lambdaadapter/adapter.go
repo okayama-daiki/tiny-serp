@@ -1,9 +1,12 @@
 package lambdaadapter
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -23,13 +26,11 @@ func New(service *tinyserp.Service) *Adapter {
 
 // Handle processes Lambda Function URL requests.
 func (a *Adapter) Handle(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
-	target := request.RawPath
-	if target == "" {
-		target = "/"
-	}
-	if request.RawQueryString != "" {
-		target += "?" + request.RawQueryString
-	}
+	// Build the request target with net/url instead of manual string concatenation.
+	target := (&url.URL{
+		Path:     defaultPath(request.RawPath),
+		RawQuery: request.RawQueryString,
+	}).RequestURI()
 
 	body := strings.NewReader(request.Body)
 	req, err := http.NewRequestWithContext(ctx, request.RequestContext.HTTP.Method, target, body)
@@ -40,44 +41,24 @@ func (a *Adapter) Handle(ctx context.Context, request events.LambdaFunctionURLRe
 		req.Header.Set(key, value)
 	}
 
-	writer := &responseBuffer{header: make(http.Header)}
-	a.handler.ServeHTTP(writer, req)
+	recorder := httptest.NewRecorder()
+	a.handler.ServeHTTP(recorder, req)
+
+	resp := recorder.Result()
+	defer resp.Body.Close()
+
+	payload, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return events.LambdaFunctionURLResponse{}, err
+	}
 
 	return events.LambdaFunctionURLResponse{
-		StatusCode:      writer.statusCodeOrOK(),
-		Headers:         flattenHeaders(writer.header),
-		Body:            writer.body.String(),
+		StatusCode:      resp.StatusCode,
+		Headers:         flattenHeaders(resp.Header),
+		Body:            string(payload),
 		IsBase64Encoded: false,
-		Cookies:         extractCookies(writer.header),
+		Cookies:         extractCookies(resp.Header),
 	}, nil
-}
-
-type responseBuffer struct {
-	header http.Header
-	body   bytes.Buffer
-	status int
-}
-
-func (w *responseBuffer) Header() http.Header {
-	return w.header
-}
-
-func (w *responseBuffer) Write(payload []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.body.Write(payload)
-}
-
-func (w *responseBuffer) WriteHeader(status int) {
-	w.status = status
-}
-
-func (w *responseBuffer) statusCodeOrOK() int {
-	if w.status == 0 {
-		return http.StatusOK
-	}
-	return w.status
 }
 
 func flattenHeaders(header http.Header) map[string]string {
@@ -92,12 +73,13 @@ func flattenHeaders(header http.Header) map[string]string {
 }
 
 func extractCookies(header http.Header) []string {
-	values := header.Values("Set-Cookie")
-	if len(values) == 0 {
-		return nil
+	return slices.Clone(header.Values("Set-Cookie"))
+}
+
+func defaultPath(rawPath string) string {
+	if rawPath == "" {
+		return "/"
 	}
 
-	cookies := make([]string, len(values))
-	copy(cookies, values)
-	return cookies
+	return rawPath
 }

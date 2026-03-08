@@ -190,14 +190,12 @@ func parseBing(r io.Reader) ([]SearchItem, error) {
 }
 
 func normalizeDuckDuckGoLink(raw string) string {
-	if raw == "" {
-		return ""
-	}
-	raw = withHTTPSchemeIfProtocolRelative(raw)
-
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return ""
+	}
+	if parsed.Scheme == "" && parsed.Host != "" {
+		parsed.Scheme = "https"
 	}
 
 	if strings.Contains(parsed.Host, "duckduckgo.com") {
@@ -218,10 +216,6 @@ func normalizeDuckDuckGoLink(raw string) string {
 }
 
 func normalizeBingLink(raw string) string {
-	if raw == "" {
-		return ""
-	}
-
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return ""
@@ -265,15 +259,6 @@ func decodeBingTarget(encoded string) string {
 
 func normalizeEngineName(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func withHTTPSchemeIfProtocolRelative(raw string) string {
-	trimmed := strings.TrimPrefix(raw, "//")
-	if trimmed == raw {
-		return raw
-	}
-
-	return "https://" + trimmed
 }
 
 func isHTTPURL(value string) bool {
