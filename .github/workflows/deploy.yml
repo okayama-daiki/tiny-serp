@@ -1,140 +1,61 @@
 name: Deploy Lambda
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
 
 permissions:
-  id-token: write
-  contents: read
+    id-token: write
+    contents: read
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  LAMBDA_FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME }}
-  LAMBDA_EXECUTION_ROLE_ARN: ${{ vars.LAMBDA_EXECUTION_ROLE_ARN }}
-  LAMBDA_USER_AGENT: tiny-serp/0.1 (+https://github.com/okayama-daiki/tiny-serp)
+    AWS_REGION: ${{ vars.AWS_REGION }}
+    LAMBDA_FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME }}
+    LAMBDA_EXECUTION_ROLE_ARN: ${{ vars.LAMBDA_EXECUTION_ROLE_ARN }}
+    LAMBDA_USER_AGENT: tiny-serp/0.1 (+https://github.com/okayama-daiki/tiny-serp)
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment: production
+    deploy:
+        runs-on: ubuntu-latest
+        environment: production
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
+            - name: Set up Go
+              uses: actions/setup-go@v6
+              with:
+                  go-version-file: go.mod
 
-      - name: Run tests
-        run: go test ./...
+            - name: Run tests
+              run: go test ./...
 
-      - name: Build Lambda bootstrap
-        run: |
-          set -euo pipefail
-          rm -rf .dist/lambda
-          mkdir -p .dist/lambda
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o .dist/lambda/bootstrap ./cmd/lambda
+            - name: Build Lambda bootstrap
+              run: |
+                  rm -rf .dist/lambda
+                  mkdir -p .dist/lambda
+                  GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o .dist/lambda/bootstrap ./cmd/lambda
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6.0.0
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          role-session-name: ${{ github.run_id }}
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v6.0.0
+              with:
+                  aws-region: ${{ env.AWS_REGION }}
+                  role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+                  role-session-name: ${{ github.run_id }}
 
-      - name: Deploy Lambda function
-        id: deploy
-        uses: aws-actions/aws-lambda-deploy@v1.1.0
-        with:
-          function-name: ${{ env.LAMBDA_FUNCTION_NAME }}
-          code-artifacts-dir: .dist/lambda
-          handler: bootstrap
-          runtime: provided.al2023
-          architectures: arm64
-          memory-size: 128
-          timeout: 10
-          publish: false
-          role: ${{ env.LAMBDA_EXECUTION_ROLE_ARN }}
-          environment: '{"TINY_SERP_USER_AGENT":"${{ env.LAMBDA_USER_AGENT }}"}'
-
-      - name: Ensure Function URL configuration
-        run: |
-          set -euo pipefail
-          cors='{"AllowOrigins":["*"],"AllowMethods":["GET"],"AllowHeaders":["*"]}'
-
-          if aws lambda get-function-url-config --function-name "$LAMBDA_FUNCTION_NAME" >/dev/null 2>&1; then
-            aws lambda update-function-url-config \
-              --function-name "$LAMBDA_FUNCTION_NAME" \
-              --auth-type NONE \
-              --cors "$cors" >/dev/null
-          else
-            aws lambda create-function-url-config \
-              --function-name "$LAMBDA_FUNCTION_NAME" \
-              --auth-type NONE \
-              --cors "$cors" >/dev/null
-          fi
-
-      - name: Ensure public Function URL permissions
-        run: |
-          set -euo pipefail
-
-          add_permission() {
-            statement_id="$1"
-            shift
-
-            set +e
-            output=$(aws lambda add-permission \
-              --function-name "$LAMBDA_FUNCTION_NAME" \
-              --statement-id "$statement_id" \
-              "$@" 2>&1)
-            status=$?
-            set -e
-
-            if [ "$status" -eq 0 ]; then
-              return 0
-            fi
-
-            if printf '%s' "$output" | grep -q 'ResourceConflictException'; then
-              echo "Permission $statement_id already exists"
-              return 0
-            fi
-
-            printf '%s\n' "$output"
-            return "$status"
-          }
-
-          add_permission FunctionURLAllowPublicAccess \
-            --action lambda:InvokeFunctionUrl \
-            --principal '*' \
-            --function-url-auth-type NONE
-
-          add_permission FunctionURLInvokeAllowPublicAccess \
-            --action lambda:InvokeFunction \
-            --principal '*' \
-            --invoked-via-function-url
-
-      - name: Read Function URL
-        id: function-url
-        run: |
-          set -euo pipefail
-          url=$(aws lambda get-function-url-config \
-            --function-name "$LAMBDA_FUNCTION_NAME" \
-            --query FunctionUrl \
-            --output text)
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-
-      - name: Deployment summary
-        run: |
-          {
-            echo "## Lambda deploy"
-            echo ""
-            echo "- Function: $LAMBDA_FUNCTION_NAME"
-            echo "- Region: $AWS_REGION"
-            echo "- Function ARN: ${{ steps.deploy.outputs.function-arn }}"
-            echo "- Function URL: ${{ steps.function-url.outputs.url }}"
-          } >> "$GITHUB_STEP_SUMMARY"
+            - name: Deploy Lambda function
+              uses: aws-actions/aws-lambda-deploy@v1.1.0
+              with:
+                  function-name: ${{ env.LAMBDA_FUNCTION_NAME }}
+                  code-artifacts-dir: .dist/lambda
+                  handler: bootstrap
+                  runtime: provided.al2023
+                  architectures: arm64
+                  memory-size: 128
+                  timeout: 10
+                  publish: false
+                  role: ${{ env.LAMBDA_EXECUTION_ROLE_ARN }}
+                  environment: '{"TINY_SERP_USER_AGENT":"${{ env.LAMBDA_USER_AGENT }}"}'

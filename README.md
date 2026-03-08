@@ -82,8 +82,9 @@ The workflow:
 - runs `go test ./...`
 - builds `./cmd/lambda` as a Linux `arm64` bootstrap binary
 - deploys the ZIP artifact with `aws-actions/aws-lambda-deploy`
-- creates or updates the Lambda Function URL
-- ensures the public `NONE` auth permissions required for Function URLs
+
+Function URL configuration and public access policy are managed outside this
+workflow.
 
 The recommended GitHub environment name is `production`.
 
