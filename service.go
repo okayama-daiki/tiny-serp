@@ -71,7 +71,7 @@ func (s *Service) Search(ctx context.Context, engineName, query string) (SearchR
 	}
 
 	trimmedEngineName := strings.TrimSpace(engineName)
-	engineName = normalizeEngineName(engineName)
+	engineName = normalizeEngineName(trimmedEngineName)
 	config, ok := engines[engineName]
 	if !ok {
 		return SearchResponse{}, fmt.Errorf("%w: %s", ErrUnsupportedEngine, trimmedEngineName)
@@ -198,7 +198,7 @@ func normalizeDuckDuckGoLink(raw string) string {
 		parsed.Scheme = "https"
 	}
 
-	if strings.Contains(parsed.Host, "duckduckgo.com") {
+	if hasHostSuffix(parsed.Hostname(), "duckduckgo.com") {
 		target := parsed.Query().Get("uddg")
 		if target != "" {
 			decoded, err := url.QueryUnescape(target)
@@ -221,7 +221,7 @@ func normalizeBingLink(raw string) string {
 		return ""
 	}
 
-	if strings.Contains(parsed.Host, "bing.com") {
+	if hasHostSuffix(parsed.Hostname(), "bing.com") {
 		if target := decodeBingTarget(parsed.Query().Get("u")); target != "" {
 			return target
 		}
@@ -259,6 +259,10 @@ func decodeBingTarget(encoded string) string {
 
 func normalizeEngineName(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func hasHostSuffix(host, suffix string) bool {
+	return host == suffix || strings.HasSuffix(host, "."+suffix)
 }
 
 func isHTTPURL(value string) bool {

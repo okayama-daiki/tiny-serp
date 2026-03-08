@@ -145,6 +145,20 @@ func TestServiceSearchDetectsDuckDuckGoChallenge(t *testing.T) {
 	}
 }
 
+func TestNormalizeDuckDuckGoLinkRejectsLookalikeHost(t *testing.T) {
+	link := normalizeDuckDuckGoLink("https://notduckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Flambda%2F")
+	if link != "https://notduckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Flambda%2F" {
+		t.Fatalf("unexpected normalized link: %s", link)
+	}
+}
+
+func TestNormalizeDuckDuckGoLinkHandlesProtocolRelativeURLs(t *testing.T) {
+	link := normalizeDuckDuckGoLink("//duckduckgo.com/l/?uddg=https%3A%2F%2Faws.amazon.com%2Flambda%2F")
+	if link != "https://aws.amazon.com/lambda/" {
+		t.Fatalf("unexpected normalized link: %s", link)
+	}
+}
+
 func readFixture(t *testing.T, path string) string {
 	t.Helper()
 

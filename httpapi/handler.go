@@ -35,14 +35,7 @@ func NewHandler(service *tinyserp.Service) http.Handler {
 
 		response, err := service.Search(r.Context(), engine, query)
 		if err != nil {
-			status := http.StatusBadGateway
-			switch {
-			case errors.Is(err, tinyserp.ErrQueryRequired), errors.Is(err, tinyserp.ErrUnsupportedEngine):
-				status = http.StatusBadRequest
-			case errors.Is(err, tinyserp.ErrUpstreamBlocked), errors.Is(err, tinyserp.ErrUpstreamStatus):
-				status = http.StatusBadGateway
-			}
-			writeJSON(w, status, map[string]string{"error": err.Error()})
+			writeJSON(w, statusForError(err), map[string]string{"error": err.Error()})
 			return
 		}
 
@@ -62,4 +55,15 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(append(body, '\n'))
+}
+
+func statusForError(err error) int {
+	switch {
+	case errors.Is(err, tinyserp.ErrQueryRequired), errors.Is(err, tinyserp.ErrUnsupportedEngine):
+		return http.StatusBadRequest
+	case errors.Is(err, tinyserp.ErrUpstreamBlocked), errors.Is(err, tinyserp.ErrUpstreamStatus):
+		return http.StatusBadGateway
+	default:
+		return http.StatusBadGateway
+	}
 }
