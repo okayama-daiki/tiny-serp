@@ -70,9 +70,11 @@ func (s *Service) Search(ctx context.Context, engineName, query string) (SearchR
 		return SearchResponse{}, ErrQueryRequired
 	}
 
-	config, ok := engines[strings.ToLower(strings.TrimSpace(engineName))]
+	trimmedEngineName := strings.TrimSpace(engineName)
+	engineName = normalizeEngineName(engineName)
+	config, ok := engines[engineName]
 	if !ok {
-		return SearchResponse{}, fmt.Errorf("%w: %s", ErrUnsupportedEngine, strings.TrimSpace(engineName))
+		return SearchResponse{}, fmt.Errorf("%w: %s", ErrUnsupportedEngine, trimmedEngineName)
 	}
 
 	endpoint, err := url.Parse(config.endpoint)
@@ -118,7 +120,7 @@ func (s *Service) Search(ctx context.Context, engineName, query string) (SearchR
 	return SearchResponse{
 		SearchInformation: SearchInformation{
 			Query:           query,
-			Engine:          strings.ToLower(strings.TrimSpace(engineName)),
+			Engine:          engineName,
 			ResultsReturned: len(items),
 		},
 		Items: items,
@@ -191,9 +193,7 @@ func normalizeDuckDuckGoLink(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	if strings.HasPrefix(raw, "//") {
-		raw = "https:" + raw
-	}
+	raw = withHTTPSchemeIfProtocolRelative(raw)
 
 	parsed, err := url.Parse(raw)
 	if err != nil {
@@ -204,7 +204,7 @@ func normalizeDuckDuckGoLink(raw string) string {
 		target := parsed.Query().Get("uddg")
 		if target != "" {
 			decoded, err := url.QueryUnescape(target)
-			if err == nil && strings.HasPrefix(decoded, "http") {
+			if err == nil && isHTTPURL(decoded) {
 				return decoded
 			}
 		}
@@ -245,9 +245,7 @@ func decodeBingTarget(encoded string) string {
 	if encoded == "" {
 		return ""
 	}
-	if strings.HasPrefix(encoded, "a1") {
-		encoded = encoded[2:]
-	}
+	encoded = strings.TrimPrefix(encoded, "a1")
 
 	decoded, err := base64.RawStdEncoding.DecodeString(encoded)
 	if err != nil {
@@ -258,11 +256,28 @@ func decodeBingTarget(encoded string) string {
 	}
 
 	target := string(decoded)
-	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+	if isHTTPURL(target) {
 		return target
 	}
 
 	return ""
+}
+
+func normalizeEngineName(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func withHTTPSchemeIfProtocolRelative(raw string) string {
+	trimmed := strings.TrimPrefix(raw, "//")
+	if trimmed == raw {
+		return raw
+	}
+
+	return "https://" + trimmed
+}
+
+func isHTTPURL(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
 }
 
 func normalizeSpace(value string) string {
