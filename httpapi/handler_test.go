@@ -125,6 +125,22 @@ func TestHandlerMapsBlockedUpstreamToBadGateway(t *testing.T) {
 	}
 }
 
+func TestWriteJSONFallsBackToInternalServerErrorOnEncodingFailure(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	writeJSON(recorder, http.StatusOK, map[string]any{"broken": func() {}})
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("unexpected status code: %d", recorder.Code)
+	}
+	if contentType := recorder.Header().Get("Content-Type"); !strings.HasPrefix(contentType, "text/plain;") {
+		t.Fatalf("unexpected content type: %s", contentType)
+	}
+	if body := recorder.Body.String(); !strings.Contains(body, "Internal Server Error") {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func readFixture(t *testing.T, path string) string {
 	t.Helper()
 

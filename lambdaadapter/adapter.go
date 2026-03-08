@@ -48,6 +48,7 @@ func (a *Adapter) Handle(ctx context.Context, request events.LambdaFunctionURLRe
 		Headers:         flattenHeaders(writer.header),
 		Body:            writer.body.String(),
 		IsBase64Encoded: false,
+		Cookies:         extractCookies(writer.header),
 	}, nil
 }
 
@@ -82,7 +83,21 @@ func (w *responseBuffer) statusCodeOrOK() int {
 func flattenHeaders(header http.Header) map[string]string {
 	flattened := make(map[string]string, len(header))
 	for key, values := range header {
+		if http.CanonicalHeaderKey(key) == "Set-Cookie" {
+			continue
+		}
 		flattened[key] = strings.Join(values, ",")
 	}
 	return flattened
+}
+
+func extractCookies(header http.Header) []string {
+	values := header.Values("Set-Cookie")
+	if len(values) == 0 {
+		return nil
+	}
+
+	cookies := make([]string, len(values))
+	copy(cookies, values)
+	return cookies
 }
