@@ -1,59 +1,21 @@
 # tiny-serp
 
-A tiny SERP (Search Engine Results Page) extraction service for serverless environments.
+A tiny SERP (Search Engine Results Page) extraction service in Go.
 
-## Scope
+## What is tiny-serp?
 
-`tiny-serp` fetches public search engine HTML, parses organic search results, and returns structured JSON.
+tiny-serp is a minimal SERP extraction service. It queries public search engines, retrieves the HTML result page, parses the results, and returns structured search data (title, URL, snippet). The goal is to provide a lightweight, dependency-minimal alternative to commercial search APIs.
 
-Current scope:
-
-- Engines: `duckduckgo`, `bing`
-- Endpoint: `GET /search?engine={engine}&q={query}`
-- Runtime: Go
-- Deployment target: AWS Lambda Function URL
-- Deployment method: GitHub Actions with `aws-actions/aws-lambda-deploy`
-
-## Package layout
-
-- module root: public library package `tinyserp`
-- `httpapi/`: `net/http` handler package
-- `cmd/tiny-serp`: local HTTP server entrypoint
-- `cmd/lambda`: Lambda Function URL entrypoint (uses `aws-lambda-go/lambdaurl`)
-
-This keeps the reusable search logic importable from other repositories while
-keeping transport-specific code out of the root package.
-
-## Library usage
-
-```go
-service := tinyserp.NewService(tinyserp.BingEngine{}, nil)
-response, err := service.Search(ctx, "aws lambda")
-```
-
-External packages can implement `tinyserp.Engine` directly. The
-`map[string]tinyserp.Engine` registry returned by `DefaultEngines()` is mainly
-for HTTP-layer engine resolution.
-
-Non-goals for the initial version:
-
-- caching
-- authentication
-- rate limiting
-- proxies
-- headless browsers
-
-## Local usage
+## Quickstart (HTTP server)
 
 ```bash
-go test ./...
 go run ./cmd/tiny-serp
 ```
 
-Then call:
+Then, send a search request:
 
 ```bash
-curl 'http://localhost:8080/search?engine=bing&q=aws+lambda'
+curl 'http://localhost:8080/search?engine=duckduckgo&q=aws+lambda'
 ```
 
 Example response:
@@ -83,31 +45,44 @@ Example response:
 }
 ```
 
-## GitHub Actions deploy
+## Library usage
+
+```go
+service := tinyserp.NewService(tinyserp.DuckDuckGoEngine{}, nil)
+response, err := service.Search(ctx, "aws lambda")
+```
+
+## Deploy to AWS Lambda
 
 Deployment is handled by `.github/workflows/deploy.yml`.
 
-Configure these repository or environment variables first:
+You need to fork this repository and set up GitHub Actions secrets to deploy to your own AWS account.
+
+Required secrets:
 
 - `AWS_REGION`
 - `AWS_DEPLOY_ROLE_ARN`
 - `LAMBDA_FUNCTION_NAME`
 - `LAMBDA_EXECUTION_ROLE_ARN`
 
-The workflow:
-
-- runs `go test ./...`
-- builds `./cmd/lambda` as a Linux `arm64` bootstrap binary
-- deploys the ZIP artifact with `aws-actions/aws-lambda-deploy`
-
-Function URL configuration and public access policy are managed outside this
-workflow.
-
-`cmd/lambda` uses `aws-lambda-go/lambdaurl`, so Function URL must use
-`InvokeMode: RESPONSE_STREAM`.
+`cmd/lambda` uses `aws-lambda-go/lambdaurl`, so Function URL must use `InvokeMode: RESPONSE_STREAM`.
 
 The recommended GitHub environment name is `production`.
 
-## Design notes
+## Future Development
 
-Implementation decisions are recorded under `docs/design/`.
+The current release intentionally focuses on minimal SERP extraction.
+Potential next areas of development are:
+
+- caching (response reuse and upstream load reduction)
+- authentication (optional access control for shared deployments)
+- rate limiting (basic abuse prevention)
+- timelimit (request timeout control for upstream searches)
+- proxies (geo/network routing control)
+- headless browsers (fallback for JS-heavy result pages)
+
+All contributions are welcome, but the project will prioritize simplicity and low dependencies over feature bloat. Please open an issue or pull request if you have ideas or improvements!
+
+## License
+
+tiny-serp is licensed under the MIT License. See [LICENSE](LICENSE) for details.
