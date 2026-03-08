@@ -25,6 +25,21 @@ Current scope:
 This keeps the reusable search logic importable from other repositories while
 keeping transport-specific code out of the root package.
 
+## Library usage
+
+```go
+engines := tinyserp.DefaultEngines()
+engine := engines["bing"]
+if engine == nil {
+    // handle error
+}
+
+service := tinyserp.NewService(engine, nil)
+response, err := service.Search(ctx, "aws lambda")
+```
+
+External packages can add custom engines by populating their own `map[string]tinyserp.Engine`.
+
 Non-goals for the initial version:
 
 - caching

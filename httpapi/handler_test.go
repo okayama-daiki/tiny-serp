@@ -15,18 +15,18 @@ import (
 
 func TestHandlerSearchSuccess(t *testing.T) {
 	html := readFixture(t, "../testdata/bing.html")
-	service := tinyserp.NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     make(http.Header),
 			Body:       io.NopCloser(strings.NewReader(html)),
 		}, nil
-	})})
+	})}
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/search?engine=bing&q=aws+lambda", nil)
 
-	NewHandler(service).ServeHTTP(recorder, request)
+	NewHandler(client, tinyserp.DefaultEngines()).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: %d", recorder.Code)
@@ -48,10 +48,10 @@ func TestHandlerSearchSuccess(t *testing.T) {
 }
 
 func TestHandlerSearchValidation(t *testing.T) {
-	service := tinyserp.NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		t.Fatal("unexpected outbound request")
 		return nil, nil
-	})})
+	})}
 
 	tests := []struct {
 		name       string
@@ -83,7 +83,7 @@ func TestHandlerSearchValidation(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(service)
+	handler := NewHandler(client, tinyserp.DefaultEngines())
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
@@ -108,20 +108,43 @@ func TestHandlerSearchValidation(t *testing.T) {
 
 func TestHandlerMapsBlockedUpstreamToBadGateway(t *testing.T) {
 	html := readFixture(t, "../testdata/duckduckgo_challenge.html")
-	service := tinyserp.NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     make(http.Header),
 			Body:       io.NopCloser(strings.NewReader(html)),
 		}, nil
-	})})
+	})}
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/search?engine=duckduckgo&q=aws+lambda", nil)
 
-	NewHandler(service).ServeHTTP(recorder, request)
+	NewHandler(client, tinyserp.DefaultEngines()).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusBadGateway {
+		t.Fatalf("unexpected status code: %d", recorder.Code)
+	}
+}
+
+func TestHandlerNormalizesEngineMapKeys(t *testing.T) {
+	html := readFixture(t, "../testdata/bing.html")
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(html)),
+		}, nil
+	})}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/search?engine=bing&q=aws+lambda", nil)
+	engines := map[string]tinyserp.Engine{
+		"  BING  ": tinyserp.BingEngine{},
+	}
+
+	NewHandler(client, engines).ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
 		t.Fatalf("unexpected status code: %d", recorder.Code)
 	}
 }

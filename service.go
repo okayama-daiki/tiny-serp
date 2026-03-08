@@ -2,53 +2,36 @@ package tinyserp
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 var (
 	ErrUnsupportedEngine = errors.New("unsupported engine")
+	ErrEngineRequired    = errors.New("engine is required")
 	ErrQueryRequired     = errors.New("query parameter q is required")
 	ErrUpstreamBlocked   = errors.New("upstream blocked the request")
 	ErrUpstreamStatus    = errors.New("unexpected upstream status")
 )
 
-type engineConfig struct {
-	endpoint string
-	parse    func(io.Reader) ([]SearchItem, error)
-}
-
-var engines = map[string]engineConfig{
-	"duckduckgo": {
-		endpoint: "https://html.duckduckgo.com/html/",
-		parse:    parseDuckDuckGo,
-	},
-	"bing": {
-		endpoint: "https://www.bing.com/search",
-		parse:    parseBing,
-	},
-}
+var defaultHTTPClient = &http.Client{Timeout: 10 * time.Second}
 
 // Service executes upstream searches and parses the returned HTML.
 type Service struct {
+	engine    Engine
 	client    *http.Client
 	userAgent string
 	language  string
 }
 
-// NewService creates a search service with a default timeout when client is nil.
-func NewService(client *http.Client) *Service {
+// NewService creates a search service bound to a single engine.
+func NewService(engine Engine, client *http.Client) *Service {
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = defaultHTTPClient
 	}
 
 	userAgent := strings.TrimSpace(os.Getenv("TINY_SERP_USER_AGENT"))
@@ -57,58 +40,52 @@ func NewService(client *http.Client) *Service {
 	}
 
 	return &Service{
+		engine:    engine,
 		client:    client,
 		userAgent: userAgent,
 		language:  "en-US,en;q=0.9",
 	}
 }
 
-// Search executes a query against the selected engine.
-func (s *Service) Search(ctx context.Context, engineName, query string) (SearchResponse, error) {
+// Search executes a query against the configured engine.
+func (s *Service) Search(ctx context.Context, query string) (SearchResponse, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return SearchResponse{}, ErrQueryRequired
 	}
 
-	trimmedEngineName := strings.TrimSpace(engineName)
-	engineName = normalizeEngineName(trimmedEngineName)
-	config, ok := engines[engineName]
-	if !ok {
-		return SearchResponse{}, fmt.Errorf("%w: %s", ErrUnsupportedEngine, trimmedEngineName)
+	if s.engine == nil {
+		return SearchResponse{}, ErrEngineRequired
 	}
 
-	endpoint, err := url.Parse(config.endpoint)
+	req, err := s.engine.BuildRequest(ctx, query)
 	if err != nil {
-		return SearchResponse{}, fmt.Errorf("parse endpoint for %s: %w", engineName, err)
+		return SearchResponse{}, fmt.Errorf("build request for %s: %w", s.engine.Name(), err)
 	}
-
-	values := endpoint.Query()
-	values.Set("q", query)
-	endpoint.RawQuery = values.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
-	if err != nil {
-		return SearchResponse{}, fmt.Errorf("create request: %w", err)
+	if req.Header == nil {
+		req.Header = make(http.Header)
 	}
-	if s.userAgent != "" {
+	if s.userAgent != "" && req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", s.userAgent)
 	}
-	if s.language != "" {
+	if s.language != "" && req.Header.Get("Accept-Language") == "" {
 		req.Header.Set("Accept-Language", s.language)
 	}
-	req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	if req.Header.Get("Accept") == "" {
+		req.Header.Set("Accept", "text/html,application/xhtml+xml")
+	}
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return SearchResponse{}, fmt.Errorf("request %s: %w", engineName, err)
+		return SearchResponse{}, fmt.Errorf("request %s: %w", s.engine.Name(), err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return SearchResponse{}, fmt.Errorf("%w: %s returned status %d", ErrUpstreamStatus, engineName, resp.StatusCode)
+		return SearchResponse{}, fmt.Errorf("%w: %s returned status %d", ErrUpstreamStatus, s.engine.Name(), resp.StatusCode)
 	}
 
-	items, err := config.parse(resp.Body)
+	items, err := s.engine.Parse(resp.Body)
 	if err != nil {
 		return SearchResponse{}, err
 	}
@@ -120,155 +97,9 @@ func (s *Service) Search(ctx context.Context, engineName, query string) (SearchR
 	return SearchResponse{
 		SearchInformation: SearchInformation{
 			Query:           query,
-			Engine:          engineName,
+			Engine:          s.engine.Name(),
 			ResultsReturned: len(items),
 		},
 		Items: items,
 	}, nil
-}
-
-func parseDuckDuckGo(r io.Reader) ([]SearchItem, error) {
-	doc, err := goquery.NewDocumentFromReader(r)
-	if err != nil {
-		return nil, fmt.Errorf("parse duckduckgo document: %w", err)
-	}
-
-	if doc.Find(".anomaly-modal__modal").Length() > 0 {
-		return nil, ErrUpstreamBlocked
-	}
-
-	items := make([]SearchItem, 0, 10)
-	doc.Find(".result").Each(func(_ int, selection *goquery.Selection) {
-		anchor := selection.Find(".result__title .result__a").First()
-		if anchor.Length() == 0 {
-			anchor = selection.Find(".result__a").First()
-		}
-
-		title := normalizeSpace(anchor.Text())
-		href, _ := anchor.Attr("href")
-		link := normalizeDuckDuckGoLink(href)
-		snippet := normalizeSpace(selection.Find(".result__snippet").First().Text())
-		if title == "" || link == "" {
-			return
-		}
-
-		items = append(items, SearchItem{
-			Title:   title,
-			Link:    link,
-			Snippet: snippet,
-		})
-	})
-
-	return items, nil
-}
-
-func parseBing(r io.Reader) ([]SearchItem, error) {
-	doc, err := goquery.NewDocumentFromReader(r)
-	if err != nil {
-		return nil, fmt.Errorf("parse bing document: %w", err)
-	}
-
-	items := make([]SearchItem, 0, 10)
-	doc.Find("#b_results .b_algo").Each(func(_ int, selection *goquery.Selection) {
-		anchor := selection.Find("h2 a").First()
-		title := normalizeSpace(anchor.Text())
-		href, _ := anchor.Attr("href")
-		link := normalizeBingLink(href)
-		snippet := normalizeSpace(selection.Find(".b_caption p").First().Text())
-		if title == "" || link == "" {
-			return
-		}
-
-		items = append(items, SearchItem{
-			Title:   title,
-			Link:    link,
-			Snippet: snippet,
-		})
-	})
-
-	return items, nil
-}
-
-func normalizeDuckDuckGoLink(raw string) string {
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	if parsed.Scheme == "" && parsed.Host != "" {
-		parsed.Scheme = "https"
-	}
-
-	if hasHostSuffix(parsed.Hostname(), "duckduckgo.com") {
-		target := parsed.Query().Get("uddg")
-		if target != "" {
-			decoded, err := url.QueryUnescape(target)
-			if err == nil && isHTTPURL(decoded) {
-				return decoded
-			}
-		}
-	}
-
-	if parsed.Scheme == "" || parsed.Host == "" {
-		return ""
-	}
-
-	return parsed.String()
-}
-
-func normalizeBingLink(raw string) string {
-	parsed, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-
-	if hasHostSuffix(parsed.Hostname(), "bing.com") {
-		if target := decodeBingTarget(parsed.Query().Get("u")); target != "" {
-			return target
-		}
-	}
-
-	if parsed.Scheme == "" || parsed.Host == "" {
-		return ""
-	}
-
-	return parsed.String()
-}
-
-func decodeBingTarget(encoded string) string {
-	encoded = strings.TrimSpace(encoded)
-	if encoded == "" {
-		return ""
-	}
-	encoded = strings.TrimPrefix(encoded, "a1")
-
-	decoded, err := base64.RawStdEncoding.DecodeString(encoded)
-	if err != nil {
-		decoded, err = base64.StdEncoding.DecodeString(encoded)
-		if err != nil {
-			return ""
-		}
-	}
-
-	target := string(decoded)
-	if isHTTPURL(target) {
-		return target
-	}
-
-	return ""
-}
-
-func normalizeEngineName(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func hasHostSuffix(host, suffix string) bool {
-	return host == suffix || strings.HasSuffix(host, "."+suffix)
-}
-
-func isHTTPURL(value string) bool {
-	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
-}
-
-func normalizeSpace(value string) string {
-	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
 }

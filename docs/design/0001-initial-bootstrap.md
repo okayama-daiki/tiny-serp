@@ -1,6 +1,6 @@
 # 0001 Initial Bootstrap
 
-Status: Partially superseded by `0002-github-actions-deploy.md` for deployment.
+Status: Partially superseded by `0002-github-actions-deploy.md` for deployment and `0005-service-bound-to-single-engine.md` for engine composition.
 
 ## Context
 
@@ -16,6 +16,7 @@ The repository started effectively empty. The initial goal is a minimal HTTP API
     - Supported engines are hard-coded in a map: `duckduckgo`, `bing`.
     - Each engine only defines its endpoint and parser function.
     - This avoids a larger plugin abstraction before there is evidence we need one.
+    - Superseded later by `0005-service-bound-to-single-engine.md`.
 
 3. Parse HTML with fixed fixtures in tests.
     - Tests use `testdata/*.html` fixtures and a stubbed `http.Client`.

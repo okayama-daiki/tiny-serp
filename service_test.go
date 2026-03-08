@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -33,8 +34,8 @@ func TestServiceSearchDuckDuckGo(t *testing.T) {
 		}, nil
 	})}
 
-	service := NewService(client)
-	response, err := service.Search(context.Background(), "duckduckgo", "aws lambda")
+	service := NewService(DuckDuckGoEngine{}, client)
+	response, err := service.Search(context.Background(), "aws lambda")
 	if err != nil {
 		t.Fatalf("Search returned error: %v", err)
 	}
@@ -84,8 +85,8 @@ func TestServiceSearchBing(t *testing.T) {
 		}, nil
 	})}
 
-	service := NewService(client)
-	response, err := service.Search(context.Background(), "bing", "aws lambda")
+	service := NewService(BingEngine{}, client)
+	response, err := service.Search(context.Background(), "aws lambda")
 	if err != nil {
 		t.Fatalf("Search returned error: %v", err)
 	}
@@ -104,25 +105,13 @@ func TestServiceSearchBing(t *testing.T) {
 	}
 }
 
-func TestServiceSearchRejectsUnsupportedEngine(t *testing.T) {
-	service := NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		t.Fatal("unexpected outbound request")
-		return nil, nil
-	})})
-
-	_, err := service.Search(context.Background(), "google", "aws lambda")
-	if !errors.Is(err, ErrUnsupportedEngine) {
-		t.Fatalf("expected ErrUnsupportedEngine, got %v", err)
-	}
-}
-
 func TestServiceSearchRejectsEmptyQuery(t *testing.T) {
-	service := NewService(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	service := NewService(DuckDuckGoEngine{}, &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		t.Fatal("unexpected outbound request")
 		return nil, nil
 	})})
 
-	_, err := service.Search(context.Background(), "duckduckgo", "")
+	_, err := service.Search(context.Background(), "")
 	if !errors.Is(err, ErrQueryRequired) {
 		t.Fatalf("expected ErrQueryRequired, got %v", err)
 	}
@@ -138,10 +127,62 @@ func TestServiceSearchDetectsDuckDuckGoChallenge(t *testing.T) {
 		}, nil
 	})}
 
-	service := NewService(client)
-	_, err := service.Search(context.Background(), "duckduckgo", "aws lambda")
+	service := NewService(DuckDuckGoEngine{}, client)
+	_, err := service.Search(context.Background(), "aws lambda")
 	if !errors.Is(err, ErrUpstreamBlocked) {
 		t.Fatalf("expected ErrUpstreamBlocked, got %v", err)
+	}
+}
+
+func TestServiceSearchRejectsNilEngine(t *testing.T) {
+	service := NewService(nil, &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatal("unexpected outbound request")
+		return nil, nil
+	})})
+
+	_, err := service.Search(context.Background(), "aws lambda")
+	if !errors.Is(err, ErrEngineRequired) {
+		t.Fatalf("expected ErrEngineRequired, got %v", err)
+	}
+}
+
+func TestServiceSearchSupportsCustomEngine(t *testing.T) {
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host != "example.com" {
+			t.Fatalf("unexpected host: %s", req.URL.Host)
+		}
+		if got := req.URL.Query().Get("q"); got != "aws lambda" {
+			t.Fatalf("unexpected query: %s", got)
+		}
+
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("<html></html>")),
+		}, nil
+	})}
+
+	service := NewService(customEngine{
+		name: "custom",
+		items: []SearchItem{{
+			Title:   "Custom result",
+			Link:    "https://example.com/result",
+			Snippet: "Custom snippet",
+		}},
+	}, client)
+
+	response, err := service.Search(context.Background(), "aws lambda")
+	if err != nil {
+		t.Fatalf("Search returned error: %v", err)
+	}
+	if response.SearchInformation.Engine != "custom" {
+		t.Fatalf("unexpected engine: %s", response.SearchInformation.Engine)
+	}
+	if len(response.Items) != 1 {
+		t.Fatalf("unexpected items length: %d", len(response.Items))
+	}
+	if response.Items[0].Rank != 1 {
+		t.Fatalf("unexpected rank: %d", response.Items[0].Rank)
 	}
 }
 
@@ -174,4 +215,30 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+type customEngine struct {
+	name  string
+	items []SearchItem
+}
+
+func (e customEngine) Name() string {
+	return e.name
+}
+
+func (e customEngine) BuildRequest(ctx context.Context, query string) (*http.Request, error) {
+	target := &url.URL{
+		Scheme: "https",
+		Host:   "example.com",
+		Path:   "/search",
+	}
+	values := target.Query()
+	values.Set("q", query)
+	target.RawQuery = values.Encode()
+
+	return http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+}
+
+func (e customEngine) Parse(r io.Reader) ([]SearchItem, error) {
+	return append([]SearchItem(nil), e.items...), nil
 }

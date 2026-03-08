@@ -20,8 +20,8 @@ type Adapter struct {
 }
 
 // New creates a Lambda adapter backed by the shared HTTP API.
-func New(service *tinyserp.Service) *Adapter {
-	return &Adapter{handler: httpapi.NewHandler(service)}
+func New(client *http.Client, engines map[string]tinyserp.Engine) *Adapter {
+	return &Adapter{handler: httpapi.NewHandler(client, engines)}
 }
 
 // Handle processes Lambda Function URL requests.
