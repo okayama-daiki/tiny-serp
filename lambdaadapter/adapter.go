@@ -26,7 +26,6 @@ func New(client *http.Client, engines map[string]tinyserp.Engine) *Adapter {
 
 // Handle processes Lambda Function URL requests.
 func (a *Adapter) Handle(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
-	// Build the request target with net/url instead of manual string concatenation.
 	target := (&url.URL{
 		Path:     defaultPath(request.RawPath),
 		RawQuery: request.RawQueryString,
